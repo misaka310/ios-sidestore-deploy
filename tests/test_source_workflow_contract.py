@@ -57,6 +57,7 @@ def test_source_workflow_reads_release_metadata_and_validates_ipa() -> None:
     assert "foundation/scripts/validate_ipa.py" in run_text
     assert "foundation/scripts/generate_alt_source.py" in run_text
     assert "foundation/scripts/validate_alt_source.py" in run_text
+    assert 'PYTHONPATH="$PWD/foundation${PYTHONPATH:+:$PYTHONPATH}"' in run_text
     assert "build-manifest.json" in run_text
 
 

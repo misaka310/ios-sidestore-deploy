@@ -157,6 +157,7 @@ jobs:
             cp "app/$SOURCE_PATH" "$source_input"
             echo "No current source was reachable; using the checked-in source template"
           fi
+          export PYTHONPATH="$PWD/foundation${PYTHONPATH:+:$PYTHONPATH}"
           python3 foundation/scripts/generate_alt_source.py \
             "$source_input" \
             "$RUNNER_TEMP/release-metadata.json" \
