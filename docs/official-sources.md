@@ -62,6 +62,19 @@ Design facts:
 - SideStore is compatible with AltStore Sources / AltSources.
 - Sources provide app/version discovery and updates.
 
+### AltSource format and updates
+
+https://faq.altstore.io/developers/make-a-source
+https://faq.altstore.io/developers/updating-apps
+
+Design facts:
+
+- A source contains an ordered `apps` array; each app has an ordered `versions` array.
+- App versions use `version`, `buildVersion`, `date`, `downloadURL`, and `size`; `minOSVersion` is supported for compatibility filtering.
+- `sha256` is supported for verifying a downloaded IPA, so the generated source carries the release asset hash.
+- Updates are detected from the first compatible version entry, so the generator keeps the newest version/build first.
+- The source implementation intentionally excludes marketplace-only `marketplaceID` and `Build` fields because the SideStore documentation warns that those fields can cause a source to be treated as notarized.
+
 ### URL scheme
 
 https://docs.sidestore.io/docs/advanced/url-schema

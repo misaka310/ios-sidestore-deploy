@@ -61,6 +61,16 @@ Downstream app repositories call `.github/workflows/reusable-build-unsigned-ipa.
 
 The workflow accepts no signing secrets. The caller must use a standard GitHub-hosted macOS runner through this workflow; a successful local validator run is not a substitute for the real hosted-run proof required by B2-B8.
 
+## Reusable release and source workflows
+
+After the unsigned build gate passes, a downstream app repository can call `.github/workflows/release.yml` from a tag workflow. It must pass the exact tag ref as both `app_ref` and `release_tag`, plus the expected app version/build. The release workflow rebuilds that tag on `macos-14`, validates the unsigned IPA and manifest, publishes the IPA and manifest to the caller's GitHub Release, then downloads the published IPA again and compares its SHA-256.
+
+The release workflow requires only the caller's `contents: write` permission and does not accept signing secrets. The tag must be `v<CFBundleShortVersionString>`; an unrelated previous Actions artifact is never published silently.
+
+The `.github/workflows/publish-source.yml` workflow is a reusable GitHub Pages publisher for a downstream app repository. It downloads and revalidates the published release, generates `source.json` from release metadata, validates the result, and deploys only that JSON to Pages. The caller must enable GitHub Pages with the workflow source and pass the resulting stable HTTPS URL so the publisher can retain older app versions across releases.
+
+`source/source.json` is the empty, non-marketplace source template. The generator keeps `versions` newest-first, rejects conflicting duplicate version/build pairs, and intentionally does not add `marketplaceID` or `Build` fields.
+
 ## Setup
 
 For a downstream app, copy the reusable-workflow call pattern from the sample repository and set the app's project/workspace path, scheme, version, and build number. The caller repository must be public when it relies on the free standard GitHub-hosted macOS runner model. No Apple credentials or signing material are required for this build path.

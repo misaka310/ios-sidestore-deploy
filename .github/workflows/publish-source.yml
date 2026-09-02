@@ -1,0 +1,193 @@
+name: Publish SideStore AltSource
+
+on:
+  workflow_call:
+    inputs:
+      app_repository:
+        description: "Owner/repository containing the downstream app and source template"
+        required: true
+        type: string
+      app_ref:
+        description: "Ref containing source/source.json"
+        required: true
+        type: string
+      foundation_repository:
+        description: "Owner/repository containing the source tools"
+        required: true
+        type: string
+      foundation_ref:
+        description: "Immutable foundation commit or tag"
+        required: true
+        type: string
+      release_tag:
+        description: "Published GitHub Release tag"
+        required: true
+        type: string
+      source_path:
+        description: "Source template path relative to the app repository"
+        required: true
+        type: string
+      source_url:
+        description: "Stable HTTPS URL where the previous/current source is hosted"
+        required: true
+        type: string
+      app_name:
+        description: "AltSource app display name"
+        required: true
+        type: string
+      developer_name:
+        description: "AltSource developer display name"
+        required: true
+        type: string
+      app_description:
+        description: "AltSource app description"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout app source template
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.app_repository }}
+          ref: ${{ inputs.app_ref }}
+          path: app
+          fetch-depth: 1
+
+      - name: Checkout deployment foundation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.foundation_repository }}
+          ref: ${{ inputs.foundation_ref }}
+          path: foundation
+          fetch-depth: 1
+
+      - name: Download and validate the published release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_REPOSITORY: ${{ inputs.app_repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          release_dir="$RUNNER_TEMP/release"
+          mkdir -p "$release_dir"
+          gh release view "$RELEASE_TAG" --repo "$APP_REPOSITORY" --json name,tagName,publishedAt,assets > "$RUNNER_TEMP/release.json"
+          gh release download "$RELEASE_TAG" --repo "$APP_REPOSITORY" --pattern "build-manifest.json" --dir "$release_dir"
+          manifest_path="$release_dir/build-manifest.json"
+          ipa_name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["ipaFileName"])' "$manifest_path")"
+          gh release download "$RELEASE_TAG" --repo "$APP_REPOSITORY" --pattern "$ipa_name" --dir "$release_dir"
+          ipa_path="$release_dir/$ipa_name"
+          python3 foundation/scripts/validate_ipa.py "$ipa_path" | tee "$RUNNER_TEMP/ipa-validation.json"
+          actual_sha256="$(sha256sum "$ipa_path" | awk '{print $1}')"
+          expected_sha256="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["ipaSha256"])' "$manifest_path")"
+          [[ "$actual_sha256" == "$expected_sha256" ]] || {
+            echo "Published IPA hash does not match its build manifest" >&2
+            exit 1
+          }
+          echo "RELEASE_DIR=$release_dir" >> "$GITHUB_ENV"
+          echo "MANIFEST_PATH=$manifest_path" >> "$GITHUB_ENV"
+          echo "IPA_PATH=$ipa_path" >> "$GITHUB_ENV"
+
+      - name: Prepare release metadata for the generator
+        shell: bash
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          DEVELOPER_NAME: ${{ inputs.developer_name }}
+          APP_DESCRIPTION: ${{ inputs.app_description }}
+          APP_REPOSITORY: ${{ inputs.app_repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          release = json.loads(Path(os.environ["RUNNER_TEMP"], "release.json").read_text(encoding="utf-8"))
+          manifest = json.loads(Path(os.environ["MANIFEST_PATH"]).read_text(encoding="utf-8"))
+          if release["tagName"] != os.environ["RELEASE_TAG"]:
+              raise SystemExit("Release metadata tag does not match requested tag")
+          asset = next(
+              (item for item in release["assets"] if item["name"] == manifest["ipaFileName"]),
+              None,
+          )
+          if asset is None:
+              raise SystemExit("Release IPA asset is missing")
+          download_url = asset["browserDownloadUrl"]
+          if not download_url.startswith("https://"):
+              raise SystemExit("Release IPA URL must use HTTPS")
+          metadata = {
+              "name": os.environ["APP_NAME"],
+              "bundleIdentifier": manifest["bundleIdentifier"],
+              "developerName": os.environ["DEVELOPER_NAME"],
+              "localizedDescription": os.environ["APP_DESCRIPTION"],
+              "version": manifest["appVersion"],
+              "buildVersion": manifest["buildNumber"],
+              "date": release["publishedAt"],
+              "downloadURL": download_url,
+              "size": asset["size"],
+              "sha256": manifest["ipaSha256"],
+              "minOSVersion": manifest["minimumOSVersion"],
+          }
+          Path(os.environ["RUNNER_TEMP"], "release-metadata.json").write_text(
+              json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Load current source and generate the next source
+        shell: bash
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+          SOURCE_PATH: ${{ inputs.source_path }}
+        run: |
+          set -euo pipefail
+          source_input="$RUNNER_TEMP/current-source.json"
+          if curl --fail --silent --show-error --location "$SOURCE_URL" --output "$source_input"; then
+            echo "Loaded the currently published source"
+          else
+            cp "app/$SOURCE_PATH" "$source_input"
+            echo "No current source was reachable; using the checked-in source template"
+          fi
+          python3 foundation/scripts/generate_alt_source.py \
+            "$source_input" \
+            "$RUNNER_TEMP/release-metadata.json" \
+            --output "$RUNNER_TEMP/source.json"
+          python3 foundation/scripts/validate_alt_source.py "$RUNNER_TEMP/source.json"
+          mkdir -p "$RUNNER_TEMP/pages"
+          cp "$RUNNER_TEMP/source.json" "$RUNNER_TEMP/pages/source.json"
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+
+      - name: Upload source verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: altsource-${{ inputs.release_tag }}
+          path: |
+            ${{ runner.temp }}/source.json
+            ${{ runner.temp }}/release-metadata.json
+          if-no-files-found: error
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/pages
+
+  deploy-pages:
+    needs: build-source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy source to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
