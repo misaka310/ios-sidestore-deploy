@@ -206,8 +206,9 @@ jobs:
           CONFIGURATION: ${{ inputs.configuration }}
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check --no-input 'jsonschema==4.23.0'
-          python3 - <<'PY'
+          python3 -m venv "$RUNNER_TEMP/manifest-venv"
+          "$RUNNER_TEMP/manifest-venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-input 'jsonschema==4.23.0'
+          "$RUNNER_TEMP/manifest-venv/bin/python" - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -237,7 +238,7 @@ jobs:
               encoding="utf-8",
           )
           PY
-          python3 - <<'PY'
+          "$RUNNER_TEMP/manifest-venv/bin/python" - <<'PY'
           import json
           import os
           from pathlib import Path

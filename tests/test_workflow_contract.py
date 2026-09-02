@@ -77,3 +77,12 @@ def test_workflow_builds_validates_and_uploads_unsigned_outputs() -> None:
     assert "foundation/scripts/validate_ipa.py" in run_text
     assert '"signed": False' in run_text
     assert any(step.get("uses", "").startswith("actions/upload-artifact@") for step in steps)
+
+
+def test_manifest_validation_uses_an_isolated_python_environment() -> None:
+    workflow = load_workflow()
+    run_text = "\n".join(step.get("run", "") for step in workflow["jobs"]["build"]["steps"])
+
+    assert 'python3 -m venv "$RUNNER_TEMP/manifest-venv"' in run_text
+    assert '"$RUNNER_TEMP/manifest-venv/bin/python" -m pip install' in run_text
+    assert '"$RUNNER_TEMP/manifest-venv/bin/python" - <<' in run_text
