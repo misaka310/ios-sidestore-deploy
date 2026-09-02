@@ -45,6 +45,12 @@ def test_workflow_uses_standard_macos_and_read_only_permissions() -> None:
     assert not re.search(r"larger|xlarge|metal", runner, re.IGNORECASE)
 
 
+def test_workflow_has_a_bounded_execution_time() -> None:
+    workflow = load_workflow()
+
+    assert workflow["jobs"]["build"]["timeout-minutes"] == 30
+
+
 def test_workflow_separates_app_and_foundation_checkouts() -> None:
     workflow = load_workflow()
     steps = workflow["jobs"]["build"]["steps"]
