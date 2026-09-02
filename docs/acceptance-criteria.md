@@ -11,32 +11,32 @@ No criterion may be marked VERIFIED from reasoning alone.
 
 ## A. Repository and cost model
 
-- [ ] **A1** Repository is public when using the zero-Actions-minute-cost assumption.
-- [ ] **A2** Build jobs use standard GitHub-hosted macOS runners, not larger runners.
-- [ ] **A3** Routine source management can be performed from Windows.
-- [ ] **A4** No personally owned Mac is required for routine build/release operation.
-- [ ] **A5** Default personal-sideloading workflow does not require paid Apple Developer Program membership.
+- [x] **A1** Repository is public when using the zero-Actions-minute-cost assumption.
+- [x] **A2** Build jobs use standard GitHub-hosted macOS runners, not larger runners.
+- [x] **A3** Routine source management can be performed from Windows.
+- [x] **A4** No personally owned Mac is required for routine build/release operation.
+- [x] **A5** Default personal-sideloading workflow does not require paid Apple Developer Program membership.
 
 ## B. Unsigned macOS build proof
 
-- [ ] **B1** A minimal SwiftUI sample app exists in a separate app repository.
-- [ ] **B2** A real GitHub Actions run on a macOS GitHub-hosted runner invokes Xcode tooling successfully.
-- [ ] **B3** Build succeeds with code signing disabled and without Apple Account/signing secrets.
-- [ ] **B4** Output contains a device-targeted `.app` bundle.
-- [ ] **B5** Pipeline creates a structurally valid IPA containing exactly the expected `Payload/<App>.app` root bundle.
-- [ ] **B6** IPA validator confirms required `Info.plist` fields and no accidental signing requirement is introduced.
-- [ ] **B7** Build manifest records commit, runner/Xcode versions, app version/build, IPA filename, SHA-256, and `signed=false`.
-- [ ] **B8** IPA and manifest are uploaded as Actions artifacts.
+- [x] **B1** A minimal SwiftUI sample app exists in a separate app repository.
+- [x] **B2** A real GitHub Actions run on a macOS GitHub-hosted runner invokes Xcode tooling successfully.
+- [x] **B3** Build succeeds with code signing disabled and without Apple Account/signing secrets.
+- [x] **B4** Output contains a device-targeted `.app` bundle.
+- [x] **B5** Pipeline creates a structurally valid IPA containing exactly the expected `Payload/<App>.app` root bundle.
+- [x] **B6** IPA validator confirms required `Info.plist` fields and no accidental signing requirement is introduced.
+- [x] **B7** Build manifest records commit, runner/Xcode versions, app version/build, IPA filename, SHA-256, and `signed=false`.
+- [x] **B8** IPA and manifest are uploaded as Actions artifacts.
 
 **Gate:** Do not claim Windows-only/free E2E success before B2-B8 pass in a real hosted run.
 
 ## C. Release and AltSource
 
-- [ ] **C1** A version/tag trigger publishes the already-validated IPA to GitHub Releases.
-- [ ] **C2** Released IPA hash matches validated build evidence.
-- [ ] **C3** AltSource JSON is generated automatically from release metadata.
-- [ ] **C4** AltSource passes schema/semantic validation.
-- [ ] **C5** AltSource is available at a stable HTTPS URL.
+- [x] **C1** A version/tag trigger publishes the already-validated IPA to GitHub Releases.
+- [x] **C2** Released IPA hash matches validated build evidence.
+- [x] **C3** AltSource JSON is generated automatically from release metadata.
+- [x] **C4** AltSource passes schema/semantic validation.
+- [x] **C5** AltSource is available at a stable HTTPS URL.
 - [ ] **C6** SideStore can add the source on a physical iPhone.
 
 ## D. Physical-device installation
