@@ -57,6 +57,12 @@ Planned responsibilities:
 8. Define evidence gates for 7-day refresh, one-tap update, and experimental zero-tap update behavior.
 9. Expose reusable GitHub Actions workflows for downstream app repositories after the prototype proves the path.
 
+## Reusable unsigned build workflow
+
+Downstream app repositories call `.github/workflows/reusable-build-unsigned-ipa.yml` with their scheme and project/workspace path plus the explicit foundation repository/ref. The workflow checks out the app and this foundation separately, builds a device-targeted Release app with signing disabled, validates the IPA, validates the build manifest, and uploads both files as one Actions artifact.
+
+The workflow accepts no signing secrets. The caller must use a standard GitHub-hosted macOS runner through this workflow; a successful local validator run is not a substitute for the real hosted-run proof required by B2-B8.
+
 ## Required reading order for Codex
 
 1. `README.md`
