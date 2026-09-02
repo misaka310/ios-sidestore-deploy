@@ -63,14 +63,46 @@ on:
         required: false
         default: ""
         type: string
+      publish_source:
+        description: "Generate and deploy the AltSource in this same run"
+        required: false
+        default: false
+        type: boolean
+      source_path:
+        description: "Source template path relative to the app repository"
+        required: false
+        default: ""
+        type: string
+      source_url:
+        description: "Stable HTTPS URL where the current source is hosted"
+        required: false
+        default: ""
+        type: string
+      source_app_name:
+        description: "AltSource app display name"
+        required: false
+        default: ""
+        type: string
+      source_developer_name:
+        description: "AltSource developer display name"
+        required: false
+        default: ""
+        type: string
+      source_app_description:
+        description: "AltSource app description"
+        required: false
+        default: ""
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
     runs-on: macos-14
     timeout-minutes: 45
+    permissions:
+      contents: write
     steps:
       - name: Checkout tagged app repository
         uses: actions/checkout@v4
@@ -319,3 +351,157 @@ jobs:
             exit 1
           fi
           echo "Published IPA hash verified: $published_sha256"
+
+  publish-source:
+    if: ${{ inputs.publish_source }}
+    needs: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout tagged app source template
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.app_repository }}
+          ref: ${{ inputs.app_ref }}
+          path: app
+          fetch-depth: 1
+
+      - name: Checkout deployment foundation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.foundation_repository }}
+          ref: ${{ inputs.foundation_ref }}
+          path: foundation
+          fetch-depth: 1
+
+      - name: Download and validate the released IPA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_REPOSITORY: ${{ inputs.app_repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          release_dir="$RUNNER_TEMP/release"
+          mkdir -p "$release_dir"
+          gh release view "$RELEASE_TAG" --repo "$APP_REPOSITORY" --json name,tagName,publishedAt,assets > "$RUNNER_TEMP/release.json"
+          gh release download "$RELEASE_TAG" --repo "$APP_REPOSITORY" --pattern "build-manifest.json" --dir "$release_dir"
+          manifest_path="$release_dir/build-manifest.json"
+          ipa_name="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["ipaFileName"])' "$manifest_path")"
+          gh release download "$RELEASE_TAG" --repo "$APP_REPOSITORY" --pattern "$ipa_name" --dir "$release_dir"
+          ipa_path="$release_dir/$ipa_name"
+          python3 foundation/scripts/validate_ipa.py "$ipa_path" | tee "$RUNNER_TEMP/source-ipa-validation.json"
+          actual_sha256="$(sha256sum "$ipa_path" | awk '{print $1}')"
+          expected_sha256="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["ipaSha256"])' "$manifest_path")"
+          [[ "$actual_sha256" == "$expected_sha256" ]] || {
+            echo "Released IPA hash does not match its build manifest" >&2
+            exit 1
+          }
+          echo "SOURCE_RELEASE_DIR=$release_dir" >> "$GITHUB_ENV"
+          echo "SOURCE_MANIFEST_PATH=$manifest_path" >> "$GITHUB_ENV"
+
+      - name: Prepare release metadata for the source generator
+        shell: bash
+        env:
+          SOURCE_APP_NAME: ${{ inputs.source_app_name }}
+          SOURCE_DEVELOPER_NAME: ${{ inputs.source_developer_name }}
+          SOURCE_APP_DESCRIPTION: ${{ inputs.source_app_description }}
+          SOURCE_APP_REPOSITORY: ${{ inputs.app_repository }}
+          SOURCE_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SOURCE_APP_NAME" && -n "$SOURCE_DEVELOPER_NAME" && -n "$SOURCE_APP_DESCRIPTION" ]] || {
+            echo "Source app metadata is required when publish_source is true" >&2
+            exit 1
+          }
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          release = json.loads(Path(os.environ["RUNNER_TEMP"], "release.json").read_text(encoding="utf-8"))
+          manifest = json.loads(Path(os.environ["SOURCE_MANIFEST_PATH"]).read_text(encoding="utf-8"))
+          if release["tagName"] != os.environ["SOURCE_RELEASE_TAG"]:
+              raise SystemExit("Release metadata tag does not match requested tag")
+          asset = next(
+              (item for item in release["assets"] if item["name"] == manifest["ipaFileName"]),
+              None,
+          )
+          if asset is None:
+              raise SystemExit("Release IPA asset is missing")
+          download_url = asset["browserDownloadUrl"]
+          if not download_url.startswith("https://"):
+              raise SystemExit("Release IPA URL must use HTTPS")
+          metadata = {
+              "name": os.environ["SOURCE_APP_NAME"],
+              "bundleIdentifier": manifest["bundleIdentifier"],
+              "developerName": os.environ["SOURCE_DEVELOPER_NAME"],
+              "localizedDescription": os.environ["SOURCE_APP_DESCRIPTION"],
+              "version": manifest["appVersion"],
+              "buildVersion": manifest["buildNumber"],
+              "date": release["publishedAt"],
+              "downloadURL": download_url,
+              "size": asset["size"],
+              "sha256": manifest["ipaSha256"],
+              "minOSVersion": manifest["minimumOSVersion"],
+          }
+          Path(os.environ["RUNNER_TEMP"], "source-release-metadata.json").write_text(
+              json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Generate and validate AltSource
+        shell: bash
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+          SOURCE_PATH: ${{ inputs.source_path }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SOURCE_URL" && "$SOURCE_URL" == https://* ]] || {
+            echo "source_url must be an HTTPS URL when publish_source is true" >&2
+            exit 1
+          }
+          [[ -n "$SOURCE_PATH" ]] || {
+            echo "source_path is required when publish_source is true" >&2
+            exit 1
+          }
+          source_input="$RUNNER_TEMP/current-source.json"
+          if curl --fail --silent --show-error --location "$SOURCE_URL" --output "$source_input"; then
+            echo "Loaded the currently published source"
+          else
+            cp "app/$SOURCE_PATH" "$source_input"
+            echo "No current source was reachable; using the checked-in source template"
+          fi
+          python3 foundation/scripts/generate_alt_source.py \
+            "$source_input" \
+            "$RUNNER_TEMP/source-release-metadata.json" \
+            --output "$RUNNER_TEMP/source.json"
+          python3 foundation/scripts/validate_alt_source.py "$RUNNER_TEMP/source.json"
+          mkdir -p "$RUNNER_TEMP/pages"
+          cp "$RUNNER_TEMP/source.json" "$RUNNER_TEMP/pages/source.json"
+          touch "$RUNNER_TEMP/pages/.nojekyll"
+
+      - name: Upload source verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: altsource-${{ inputs.release_tag }}
+          path: |
+            ${{ runner.temp }}/source.json
+            ${{ runner.temp }}/source-release-metadata.json
+          if-no-files-found: error
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/pages
+
+      - name: Deploy source to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

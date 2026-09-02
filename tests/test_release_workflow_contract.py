@@ -22,8 +22,9 @@ def test_release_is_tag_triggered_and_uses_least_privilege_write_access() -> Non
     assert "workflow_call" in trigger
     assert trigger["workflow_call"]["inputs"]["release_tag"]["required"] is True
     assert trigger["workflow_call"]["inputs"]["app_ref"]["required"] is True
-    assert workflow["permissions"] == {"contents": "write"}
+    assert workflow["permissions"] == {"contents": "read"}
     job = workflow["jobs"]["release"]
+    assert job["permissions"] == {"contents": "write"}
     assert job["runs-on"] in {"macos-14", "macos-15", "macos-latest"}
     assert not re.search(r"larger|xlarge|metal", job["runs-on"], re.IGNORECASE)
     assert job["timeout-minutes"] == 45
@@ -86,3 +87,29 @@ def test_release_workflow_does_not_request_signing_secrets() -> None:
     trigger = workflow_trigger(workflow)
     assert "secrets" not in trigger
     assert "secrets" not in workflow["jobs"]["release"]
+
+
+def test_release_can_publish_source_in_the_same_run_without_event_chaining() -> None:
+    workflow = load_workflow()
+    trigger = workflow_trigger(workflow)
+    inputs = trigger["workflow_call"]["inputs"]
+
+    assert inputs["publish_source"]["type"] == "boolean"
+    assert inputs["publish_source"]["default"] is False
+    for name in ("source_path", "source_url", "source_app_name", "source_developer_name", "source_app_description"):
+        assert inputs[name]["required"] is False
+
+    source_job = workflow["jobs"]["publish-source"]
+    assert source_job["needs"] == "release"
+    assert source_job["if"] == "${{ inputs.publish_source }}"
+    assert source_job["runs-on"] in {"ubuntu-24.04", "ubuntu-22.04", "ubuntu-latest"}
+    assert source_job["permissions"] == {
+        "contents": "read",
+        "pages": "write",
+        "id-token": "write",
+    }
+    source_run_text = "\n".join(step.get("run", "") for step in source_job["steps"])
+    assert "foundation/scripts/generate_alt_source.py" in source_run_text
+    assert "foundation/scripts/validate_alt_source.py" in source_run_text
+    assert any(step.get("uses", "").startswith("actions/upload-pages-artifact@") for step in source_job["steps"])
+    assert any(step.get("uses", "").startswith("actions/deploy-pages@") for step in source_job["steps"])
