@@ -1,0 +1,321 @@
+name: Publish validated iOS release
+
+on:
+  workflow_call:
+    inputs:
+      app_repository:
+        description: "Owner/repository containing the downstream iOS app"
+        required: true
+        type: string
+      app_ref:
+        description: "Exact tag ref to rebuild from, normally github.ref"
+        required: true
+        type: string
+      foundation_repository:
+        description: "Owner/repository containing the shared packaging contract"
+        required: true
+        type: string
+      foundation_ref:
+        description: "Immutable foundation commit or tag"
+        required: true
+        type: string
+      release_tag:
+        description: "Release tag, for example v1.0"
+        required: true
+        type: string
+      scheme:
+        description: "Xcode scheme to build"
+        required: true
+        type: string
+      project_path:
+        description: "Project path relative to the app repository"
+        required: false
+        default: ""
+        type: string
+      workspace_path:
+        description: "Workspace path relative to the app repository"
+        required: false
+        default: ""
+        type: string
+      configuration:
+        description: "Xcode build configuration"
+        required: false
+        default: Release
+        type: string
+      app_name:
+        description: "Expected root app bundle name"
+        required: true
+        type: string
+      app_version:
+        description: "Expected CFBundleShortVersionString; tag must be v<value>"
+        required: true
+        type: string
+      build_number:
+        description: "Expected CFBundleVersion"
+        required: true
+        type: string
+      minimum_os_version:
+        description: "Fallback when MinimumOSVersion is absent"
+        required: true
+        type: string
+      release_name:
+        description: "Optional GitHub Release title"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout tagged app repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.app_repository }}
+          ref: ${{ github.ref }}
+          path: app
+          fetch-depth: 1
+
+      - name: Checkout deployment foundation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.foundation_repository }}
+          ref: ${{ inputs.foundation_ref }}
+          path: foundation
+          fetch-depth: 1
+
+      - name: Check release tag and app ref
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          APP_REF: ${{ inputs.app_ref }}
+          EXPECTED_VERSION: ${{ inputs.app_version }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]] || {
+            echo "Release tag does not match the workflow tag ref: $GITHUB_REF vs refs/tags/$RELEASE_TAG" >&2
+            exit 1
+          }
+          [[ "$GITHUB_REF_NAME" == "$RELEASE_TAG" ]] || {
+            echo "Release tag does not match GITHUB_REF_NAME: $GITHUB_REF_NAME vs $RELEASE_TAG" >&2
+            exit 1
+          }
+          [[ "$APP_REF" == "$GITHUB_REF" ]] || {
+            echo "App ref must be the exact workflow tag ref: $APP_REF vs $GITHUB_REF" >&2
+            exit 1
+          }
+          [[ "$RELEASE_TAG" == "v${EXPECTED_VERSION}" ]] || {
+            echo "Release tag does not match app version: $RELEASE_TAG vs v${EXPECTED_VERSION}" >&2
+            exit 1
+          }
+
+      - name: Record macOS and Xcode toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version | tee "$RUNNER_TEMP/xcode-version.txt"
+          xcode-select -p | tee "$RUNNER_TEMP/xcode-select-path.txt"
+          sw_vers | tee "$RUNNER_TEMP/macos-version.txt"
+          xcode_version="$(xcodebuild -version | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+          runner_image="${ImageOS:-unknown}"
+          if [[ -n "${ImageVersion:-}" ]]; then
+            runner_image="$runner_image/${ImageVersion}"
+          fi
+          echo "XCODE_VERSION=$xcode_version" >> "$GITHUB_ENV"
+          echo "RUNNER_IMAGE=$runner_image" >> "$GITHUB_ENV"
+
+      - name: Rebuild unsigned device app from tag
+        shell: bash
+        env:
+          PROJECT_PATH: ${{ inputs.project_path }}
+          WORKSPACE_PATH: ${{ inputs.workspace_path }}
+          SCHEME: ${{ inputs.scheme }}
+          CONFIGURATION: ${{ inputs.configuration }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$PROJECT_PATH" && -n "$WORKSPACE_PATH" ]]; then
+            echo "Set only one of project_path or workspace_path" >&2
+            exit 1
+          fi
+          if [[ -z "$PROJECT_PATH" && -z "$WORKSPACE_PATH" ]]; then
+            echo "Set one of project_path or workspace_path" >&2
+            exit 1
+          fi
+
+          DERIVED_DATA_PATH="$RUNNER_TEMP/DerivedData"
+          BUILD_ARGS=(-scheme "$SCHEME" -configuration "$CONFIGURATION" -sdk iphoneos -derivedDataPath "$DERIVED_DATA_PATH" -destination "generic/platform=iOS")
+          if [[ -n "$WORKSPACE_PATH" ]]; then
+            BUILD_ARGS=(-workspace "app/$WORKSPACE_PATH" "${BUILD_ARGS[@]}")
+          else
+            BUILD_ARGS=(-project "app/$PROJECT_PATH" "${BUILD_ARGS[@]}")
+          fi
+
+          xcodebuild "${BUILD_ARGS[@]}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build | tee "$RUNNER_TEMP/xcodebuild.log"
+          echo "DERIVED_DATA_PATH=$DERIVED_DATA_PATH" >> "$GITHUB_ENV"
+          echo "BUILD_PRODUCTS_DIR=$DERIVED_DATA_PATH/Build/Products/${CONFIGURATION}-iphoneos" >> "$GITHUB_ENV"
+
+      - name: Locate app and enforce metadata
+        shell: bash
+        env:
+          EXPECTED_APP_NAME: ${{ inputs.app_name }}
+          EXPECTED_APP_VERSION: ${{ inputs.app_version }}
+          EXPECTED_BUILD_NUMBER: ${{ inputs.build_number }}
+          FALLBACK_MINIMUM_OS_VERSION: ${{ inputs.minimum_os_version }}
+        run: |
+          set -euo pipefail
+          candidates=()
+          for candidate in "$BUILD_PRODUCTS_DIR"/*.app; do
+            if [[ -d "$candidate" ]]; then
+              candidates+=("$candidate")
+            fi
+          done
+
+          if [[ "${#candidates[@]}" -ne 1 ]]; then
+            echo "Expected exactly one root app bundle, found ${#candidates[@]}" >&2
+            printf '%s\n' "${candidates[@]}" >&2
+            exit 1
+          fi
+
+          app_path="${candidates[0]}"
+          app_name="$(basename "$app_path")"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")"
+          app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist")"
+          build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist")"
+          minimum_os_version="$(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$app_path/Info.plist" 2>/dev/null || true)"
+          if [[ -z "$minimum_os_version" ]]; then
+            minimum_os_version="$FALLBACK_MINIMUM_OS_VERSION"
+          fi
+
+          [[ "$app_name" == "$EXPECTED_APP_NAME" ]] || { echo "Built app name mismatch" >&2; exit 1; }
+          [[ "$app_version" == "$EXPECTED_APP_VERSION" ]] || { echo "Built app version mismatch" >&2; exit 1; }
+          [[ "$build_number" == "$EXPECTED_BUILD_NUMBER" ]] || { echo "Built build number mismatch" >&2; exit 1; }
+          [[ -n "$bundle_id" && -n "$minimum_os_version" ]] || { echo "Built app metadata is incomplete" >&2; exit 1; }
+
+          echo "APP_PATH=$app_path" >> "$GITHUB_ENV"
+          echo "APP_NAME=$app_name" >> "$GITHUB_ENV"
+          echo "BUNDLE_IDENTIFIER=$bundle_id" >> "$GITHUB_ENV"
+          echo "APP_VERSION=$app_version" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
+          echo "MINIMUM_OS_VERSION=$minimum_os_version" >> "$GITHUB_ENV"
+
+      - name: Package and validate release IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          IPA_PATH="$RUNNER_TEMP/${APP_NAME%.app}-${APP_VERSION}.ipa"
+          bash foundation/scripts/package_ipa.sh "$APP_PATH" "$IPA_PATH"
+          python3 foundation/scripts/validate_ipa.py "$IPA_PATH" | tee "$RUNNER_TEMP/ipa-validation.json"
+          IPA_SHA256="$(shasum -a 256 "$IPA_PATH" | awk '{print $1}')"
+          echo "IPA_PATH=$IPA_PATH" >> "$GITHUB_ENV"
+          echo "IPA_FILE_NAME=$(basename "$IPA_PATH")" >> "$GITHUB_ENV"
+          echo "IPA_SHA256=$IPA_SHA256" >> "$GITHUB_ENV"
+
+      - name: Write and validate release manifest
+        shell: bash
+        env:
+          FOUNDATION_REPOSITORY: ${{ inputs.foundation_repository }}
+          FOUNDATION_REF: ${{ inputs.foundation_ref }}
+          SCHEME: ${{ inputs.scheme }}
+          CONFIGURATION: ${{ inputs.configuration }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/manifest-venv"
+          "$RUNNER_TEMP/manifest-venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-input 'jsonschema==4.23.0'
+          "$RUNNER_TEMP/manifest-venv/bin/python" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = {
+              "schemaVersion": 1,
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "commitSha": os.environ["GITHUB_SHA"],
+              "workflowRunId": os.environ["GITHUB_RUN_ID"],
+              "xcodeVersion": os.environ["XCODE_VERSION"],
+              "runnerImage": os.environ["RUNNER_IMAGE"],
+              "foundationRepository": os.environ["FOUNDATION_REPOSITORY"],
+              "foundationRef": os.environ["FOUNDATION_REF"],
+              "scheme": os.environ["SCHEME"],
+              "configuration": os.environ["CONFIGURATION"],
+              "bundleIdentifier": os.environ["BUNDLE_IDENTIFIER"],
+              "appVersion": os.environ["APP_VERSION"],
+              "buildNumber": os.environ["BUILD_NUMBER"],
+              "minimumOSVersion": os.environ["MINIMUM_OS_VERSION"],
+              "ipaFileName": os.environ["IPA_FILE_NAME"],
+              "ipaSha256": os.environ["IPA_SHA256"],
+              "signed": False,
+              "buildTimestampUtc": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat().replace("+00:00", "Z"),
+          }
+          manifest_path = Path(os.environ["RUNNER_TEMP"], "build-manifest.json")
+          manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          "$RUNNER_TEMP/manifest-venv/bin/python" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from jsonschema import Draft202012Validator, FormatChecker
+
+          schema = json.loads(Path("foundation/schemas/build-manifest.schema.json").read_text(encoding="utf-8"))
+          manifest = json.loads(Path(os.environ["RUNNER_TEMP"], "build-manifest.json").read_text(encoding="utf-8"))
+          Draft202012Validator(schema, format_checker=FormatChecker()).validate(manifest)
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+          echo "MANIFEST_PATH=$RUNNER_TEMP/build-manifest.json" >> "$GITHUB_ENV"
+
+      - name: Upload validated release evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ inputs.release_tag }}
+          path: |
+            ${{ runner.temp }}/${{ env.IPA_FILE_NAME }}
+            ${{ runner.temp }}/build-manifest.json
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+        run: |
+          set -euo pipefail
+          title="$RELEASE_NAME"
+          if [[ -z "$title" ]]; then
+            title="$RELEASE_TAG"
+          fi
+          gh release create "$RELEASE_TAG" \
+            "$IPA_PATH#${APP_NAME} ${APP_VERSION} (unsigned IPA)" \
+            "$MANIFEST_PATH#build-manifest.json" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$title" \
+            --notes "Unsigned IPA rebuilt and validated from tag $RELEASE_TAG. IPA SHA-256: $IPA_SHA256. GitHub Actions does not sign this artifact."
+
+      - name: Verify published IPA hash
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          release_dir="$RUNNER_TEMP/release-check"
+          rm -rf "$release_dir"
+          mkdir -p "$release_dir"
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$IPA_FILE_NAME" \
+            --dir "$release_dir"
+          published_path="$release_dir/$IPA_FILE_NAME"
+          published_sha256="$(shasum -a 256 "$published_path" | awk '{print $1}')"
+          if [[ "$published_sha256" != "$IPA_SHA256" ]]; then
+            echo "Published IPA hash mismatch: $published_sha256 vs $IPA_SHA256" >&2
+            exit 1
+          fi
+          echo "Published IPA hash verified: $published_sha256"
