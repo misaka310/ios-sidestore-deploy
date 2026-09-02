@@ -61,6 +61,31 @@ Downstream app repositories call `.github/workflows/reusable-build-unsigned-ipa.
 
 The workflow accepts no signing secrets. The caller must use a standard GitHub-hosted macOS runner through this workflow; a successful local validator run is not a substitute for the real hosted-run proof required by B2-B8.
 
+## Setup
+
+For a downstream app, copy the reusable-workflow call pattern from the sample repository and set the app's project/workspace path, scheme, version, and build number. The caller repository must be public when it relies on the free standard GitHub-hosted macOS runner model. No Apple credentials or signing material are required for this build path.
+
+For local contract tests, use Python 3.11 or newer and install the test dependencies from the repository's normal Python environment. IPA packaging itself runs on macOS because it uses `ditto` and `zip`.
+
+## Usage
+
+On macOS, package an unsigned app bundle with `bash scripts/package_ipa.sh path/to/App.app dist/App.ipa`, then validate it with `python scripts/validate_ipa.py dist/App.ipa`. Downstream app repositories should call `.github/workflows/reusable-build-unsigned-ipa.yml` from their workflow rather than duplicating the packaging logic.
+
+## Verification
+
+Run the repository contract tests with `python -m pytest -q`. The authoritative hosted-run and physical-device evidence requirements are listed in `docs/verification-matrix.md` and `docs/acceptance-criteria.md`.
+
+## Requirements
+
+- A GitHub repository and the standard GitHub-hosted macOS runner for the hosted build.
+- Xcode and `xcodebuild` on the hosted macOS runner.
+- Python 3.11 or newer for validators and tests.
+- A physical iPhone, SideStore, and the required local network setup for device gates; CI cannot prove those gates.
+
+## Limitations
+
+The workflow deliberately produces an unsigned IPA. SideStore/iPhone performs signing and installation locally, and Apple's free Personal Team provisioning lifecycle still requires periodic refresh. Zero-tap updates are experimental and are not supported by this repository's completion claim.
+
 ## Required reading order for Codex
 
 1. `README.md`
