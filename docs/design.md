@@ -39,6 +39,13 @@ Runs on a **standard** public-repository GitHub-hosted macOS runner and must:
 - upload the IPA as a workflow artifact;
 - emit build metadata used by release/source stages.
 
+Because a called workflow runs in the caller repository's workspace, the
+workflow must explicitly fetch this foundation repository at a caller-supplied
+repository/ref pair before invoking the shared packaging and validation
+scripts. The app checkout and the foundation checkout must remain separate so
+the workflow cannot silently use stale or caller-local copies of deployment
+logic.
+
 No Apple Account credentials, signing certificates, provisioning profiles, or private keys may be required.
 
 ### 3.3 Release publisher
@@ -199,6 +206,10 @@ The build stage should emit a manifest with at least:
 - `buildTimestampUtc`
 
 The manifest is the traceability link between build, release, source generation, and device evidence.
+
+The workflow invocation must also record the foundation repository/ref used for
+the packaging and validation scripts in the build evidence, so a later review
+can reproduce the exact deployment contract that ran.
 
 ## 11. Failure handling
 

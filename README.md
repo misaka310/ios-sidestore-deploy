@@ -6,7 +6,7 @@ Reusable deployment foundation for building unsigned iOS IPA artifacts on GitHub
 
 ## Status
 
-**Documentation/design phase only. No implementation has been accepted yet.**
+**Implementation in progress. The separate proof app for B1 exists, but the hosted macOS build and all release/device gates remain unverified.**
 
 The repository is not considered end-to-end complete until every required real-device gate in `docs/acceptance-criteria.md` has passed. Generating an unsigned IPA on a GitHub-hosted macOS runner is an explicit early proof gate. Zero-tap app-version updates remain experimental until repeated unattended real-device success is demonstrated.
 

@@ -5,7 +5,7 @@ This file is the evidence index. Keep statuses conservative. A link to CI output
 | ID | Capability | Required evidence | Status | Evidence |
 |---|---|---|---|---|
 | A1-A5 | Public/free operating assumptions | public repo settings + runner type + Windows workflow record | PLANNED | - |
-| B1 | Minimal SwiftUI sample app | separate sample repo + commit | PLANNED | - |
+| B1 | Minimal SwiftUI sample app | separate sample repo + commit | VERIFIED | `C:\00_dev\128_ios-sidestore-sample` at commit `98186a4` |
 | B2-B4 | Unsigned hosted macOS build | GitHub Actions run URL + logs showing macOS/Xcode + `.app` artifact | PLANNED | - |
 | B5-B8 | IPA packaging/validation | CI run + validator output + build manifest + artifact hash | PLANNED | - |
 | C1-C2 | Release publication | GitHub Release URL + released IPA SHA-256 | PLANNED | - |

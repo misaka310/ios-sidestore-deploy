@@ -176,10 +176,10 @@ Commit message: `feat: package unsigned app as validated ipa`
 - Modify: `README.md`
 
 **Interfaces:**
-- `workflow_call` inputs: app repository checkout context, scheme, project/workspace selector, configuration, output app name, version/build source.
+- `workflow_call` inputs: app repository checkout context, explicit foundation repository/ref, scheme, project/workspace selector, configuration, output app name, version/build source.
 - Produces: validated IPA artifact + build manifest artifact.
 
-- [ ] **Step 1: Add a workflow-call contract with explicit inputs**
+- [ ] **Step 1: Add a workflow-call contract with explicit inputs**, including `foundation_repository` and `foundation_ref` used to fetch this repository's packaging/validation scripts.
 
 No signing secrets are accepted as inputs or secrets.
 
@@ -211,11 +211,11 @@ Fail if zero or multiple candidate app bundles exist instead of picking one arbi
 
 - [ ] **Step 5: Package and validate the IPA**
 
-Invoke `scripts/package_ipa.sh` then `scripts/validate_ipa.py`.
+Invoke the scripts from the explicit foundation checkout, not from the app checkout or an implicit stale path.
 
 - [ ] **Step 6: Write the build manifest and validate it against the schema**
 
-Include commit SHA, workflow run ID, Xcode version, runner image, scheme, bundle ID, app version/build, minimum OS version, IPA filename/hash, `signed=false`, UTC timestamp.
+Include commit SHA, workflow run ID, Xcode version, runner image, foundation repository/ref, scheme, bundle ID, app version/build, minimum OS version, IPA filename/hash, `signed=false`, UTC timestamp.
 
 - [ ] **Step 7: Upload IPA + manifest as Actions artifacts only after validation succeeds**
 
