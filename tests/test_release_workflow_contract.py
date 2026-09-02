@@ -111,5 +111,7 @@ def test_release_can_publish_source_in_the_same_run_without_event_chaining() -> 
     source_run_text = "\n".join(step.get("run", "") for step in source_job["steps"])
     assert "foundation/scripts/generate_alt_source.py" in source_run_text
     assert "foundation/scripts/validate_alt_source.py" in source_run_text
+    assert 'asset["url"]' in source_run_text
+    assert "browserDownloadUrl" not in source_run_text
     assert any(step.get("uses", "").startswith("actions/upload-pages-artifact@") for step in source_job["steps"])
     assert any(step.get("uses", "").startswith("actions/deploy-pages@") for step in source_job["steps"])
