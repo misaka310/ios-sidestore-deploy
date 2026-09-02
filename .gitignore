@@ -1,0 +1,27 @@
+# CodexPro local coordination state
+.ai-bridge/
+
+# Apple/device secrets and signing material
+*.mobiledevicepairing
+*.mobileprovision
+*.p12
+*.p8
+*.cer
+*.pem
+*.key
+
+# Local environment/secrets
+.env
+.env.*
+!.env.example
+
+# macOS/Xcode local outputs (future implementation)
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Python local outputs (future implementation)
+__pycache__/
+.pytest_cache/
+*.pyc
