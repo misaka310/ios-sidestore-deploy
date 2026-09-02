@@ -15,7 +15,7 @@ This file is the evidence index. Keep statuses conservative. A link to CI output
 | E1-E4 | 7-day refresh lifecycle | timestamped expiry/refresh/launch evidence spanning original expiry boundary | PLANNED | - |
 | F1-F5 | One-tap app-version update | version N and N+1 release/source/device evidence | PLANNED | - |
 | G1-G4 | Pairing recovery | stale pairing error + local replacement + successful retry, all redacted | PLANNED | - |
-| H1-H4 | Security | secret scan/review + workflow permission review + artifact/log review | PLANNED | - |
+| H1-H4 | Security | secret scan/review + workflow permission review + artifact/log review | VERIFIED | [final public-readiness run 33670055007](https://github.com/misaka310/ios-sidestore-deploy/actions/runs/33670055007) scanned the public target and outgoing history with no findings; workflow contracts contain no signing secrets and scope contents/pages permissions by job. The [v1.0.4 release run](https://github.com/misaka310/ios-sidestore-sample/actions/runs/33669611236) and its public [Release assets](https://github.com/misaka310/ios-sidestore-sample/releases/tag/v1.0.4) were reviewed; no device/account secrets are present. |
 | I1-I5 | Zero-tap experiment | automation definition + 3 consecutive unattended version upgrades | PLANNED | - |
 
 ## Evidence rules

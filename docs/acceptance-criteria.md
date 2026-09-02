@@ -73,10 +73,10 @@ One-tap update is the minimum release acceptance target.
 
 ## H. Security
 
-- [ ] **H1** Repository history contains no Apple credentials, pairing files, signing private keys, sensitive provisioning material, App Store Connect keys, or personal tokens.
-- [ ] **H2** Default Actions workflows need no Apple credentials.
-- [ ] **H3** Workflow permissions are least-privilege.
-- [ ] **H4** Public artifacts/logs contain no device/account secrets.
+- [x] **H1** Repository history contains no Apple credentials, pairing files, signing private keys, sensitive provisioning material, App Store Connect keys, or personal tokens.
+- [x] **H2** Default Actions workflows need no Apple credentials.
+- [x] **H3** Workflow permissions are least-privilege.
+- [x] **H4** Public artifacts/logs contain no device/account secrets.
 
 ## I. Zero-tap experimental gate
 
