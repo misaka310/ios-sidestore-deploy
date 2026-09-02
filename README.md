@@ -1,8 +1,6 @@
-# 127_ios-sidestore-deploy
+# iOS SideStore Deployment Foundation
 
 Reusable deployment foundation for building unsigned iOS IPA artifacts on GitHub-hosted macOS runners and distributing them through a SideStore-compatible AltSource, while keeping Apple Account credentials and device-specific signing material off GitHub.
-
-> Repository number note: the original draft name was `126_ios-sidestore-deploy`, but `126_fictional-cm-studio` already exists locally. This repository therefore uses `127_` to keep project numbering unique.
 
 ## Status
 

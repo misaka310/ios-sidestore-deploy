@@ -44,14 +44,14 @@ Files created in this repository during implementation:
 - `docs/operations/pairing-recovery.md` - pairing invalidation recovery.
 - `docs/verification-matrix.md` - evidence index updated as gates pass.
 
-Separate proof app repository planned for implementation: `128_ios-sidestore-sample`. If that number is occupied when execution begins, stop and choose the next unused project number before creating it; do not overwrite an existing repository.
+Separate proof-app repository planned for implementation. If the planned destination is already occupied, choose the next unused destination before creating it; do not overwrite an existing repository.
 
 ---
 
 ### Task 1: Create the minimal SwiftUI proof application
 
 **Files:**
-- Create in `128_ios-sidestore-sample`: Xcode project/workspace, minimal SwiftUI app source, README, test target.
+- Create in the separate proof-app repository: Xcode project/workspace, minimal SwiftUI app source, README, test target.
 - Modify here: `docs/verification-matrix.md`
 
 **Interfaces:**

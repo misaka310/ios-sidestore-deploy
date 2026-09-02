@@ -149,7 +149,7 @@ No pairing file may be committed, attached to public issues, or uploaded as a pu
 ## 9. Planned implementation layout
 
 ```text
-127_ios-sidestore-deploy/
+deployment-foundation/
 ├─ README.md
 ├─ AGENTS.md
 ├─ docs/
