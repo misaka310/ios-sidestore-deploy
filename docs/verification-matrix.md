@@ -4,10 +4,10 @@ This file is the evidence index. Keep statuses conservative. A link to CI output
 
 | ID | Capability | Required evidence | Status | Evidence |
 |---|---|---|---|---|
-| A1-A5 | Public/free operating assumptions | public repo settings + runner type + Windows workflow record | PLANNED | - |
-| B1 | Minimal SwiftUI sample app | separate sample repo + commit | VERIFIED | Separate SwiftUI proof-app repository at commit `9dab447` |
-| B2-B4 | Unsigned hosted macOS build | GitHub Actions run URL + logs showing macOS/Xcode + `.app` artifact | PLANNED | - |
-| B5-B8 | IPA packaging/validation | CI run + validator output + build manifest + artifact hash | PLANNED | - |
+| A1-A5 | Public/free operating assumptions | public repo settings + runner type + Windows workflow record | VERIFIED | [foundation repo](https://github.com/misaka310/ios-sidestore-deploy) and [sample repo](https://github.com/misaka310/ios-sidestore-sample) are Public; run [33659621024](https://github.com/misaka310/ios-sidestore-sample/actions/runs/33659621024) used the standard `macos-14-arm64` runner. |
+| B1 | Minimal SwiftUI sample app | separate sample repo + commit | VERIFIED | [sample main merge](https://github.com/misaka310/ios-sidestore-sample/commit/0749814d6d8b78964303702de5934a3a7de3e7fc) |
+| B2-B4 | Unsigned hosted macOS build | GitHub Actions run URL + logs showing macOS/Xcode + `.app` artifact | VERIFIED | [run 33659621024](https://github.com/misaka310/ios-sidestore-sample/actions/runs/33659621024), native XCTest job `100346671170`, unsigned build job `100348804281`; logs show `macos-14-arm64`, Xcode 15.4, device-targeted `Release-iphoneos/SideStoreSample.app`, and signing disabled. |
+| B5-B8 | IPA packaging/validation | CI run + validator output + build manifest + artifact hash | VERIFIED | [run 33659621024](https://github.com/misaka310/ios-sidestore-sample/actions/runs/33659621024) uploaded artifact `sidestore-sample` ([artifact 9858399234](https://github.com/misaka310/ios-sidestore-sample/actions/runs/33659621024/artifacts/9858399234)); independent validator and manifest schema validation passed. IPA SHA-256: `b4b34faa2afd7adc33155721d7a065dabb7d22313c5d21b60242a72b91f552de`; manifest commit SHA: `23737a1d594fe92d830bcd78af40dfba71967059`; `signed=false`. |
 | C1-C2 | Release publication | GitHub Release URL + released IPA SHA-256 | PLANNED | - |
 | C3-C5 | AltSource generation/hosting | generator test + source validation + stable HTTPS URL | PLANNED | - |
 | C6 | Add source in SideStore | redacted physical-device evidence | PLANNED | - |
