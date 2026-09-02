@@ -4,7 +4,7 @@ Reusable deployment foundation for building unsigned iOS IPA artifacts on GitHub
 
 ## Status
 
-**B1 and the real hosted unsigned-build gates B2-B8 are verified. Release publication, AltSource hosting, and every physical-device gate remain unverified.**
+**B1-B8 and C1-C5 are verified through the real public hosted build/release path. SideStore source addition, installation, refresh, update, and pairing-recovery gates remain unverified until physical-device evidence exists.**
 
 The repository is not considered end-to-end complete until every required real-device gate in `docs/acceptance-criteria.md` has passed. Generating an unsigned IPA on a GitHub-hosted macOS runner is an explicit early proof gate. Zero-tap app-version updates remain experimental until repeated unattended real-device success is demonstrated.
 
@@ -67,9 +67,11 @@ After the unsigned build gate passes, a downstream app repository can call `.git
 
 The release workflow requires only the caller's `contents: write` permission and does not accept signing secrets. The tag must be `v<CFBundleShortVersionString>`; an unrelated previous Actions artifact is never published silently.
 
-The `.github/workflows/publish-source.yml` workflow is a reusable GitHub Pages publisher for a downstream app repository. It downloads and revalidates the published release, generates `source.json` from release metadata, validates the result, and deploys only that JSON to Pages. The caller must enable GitHub Pages with the workflow source and pass the resulting stable HTTPS URL so the publisher can retain older app versions across releases.
+When `publish_source: true` is passed to `.github/workflows/release.yml`, its dependent `publish-source` job downloads and revalidates the just-published release, generates `source.json` from release metadata, validates the result, and deploys only that JSON to Pages in the same run. This avoids relying on a `GITHUB_TOKEN`-created Release event to trigger another workflow. The standalone `.github/workflows/publish-source.yml` remains available for an independently triggered source publication. The caller must enable GitHub Pages with the workflow source and pass the resulting stable HTTPS URL so the publisher can retain older app versions across releases.
 
 `source/source.json` is the empty, non-marketplace source template. The generator keeps `versions` newest-first, rejects conflicting duplicate version/build pairs, and intentionally does not add `marketplaceID` or `Build` fields.
+
+The Windows-to-device runbook is [SideStore onboarding and device evidence](docs/operations/sidestore-onboarding.md). It is intentionally operational documentation only; physical-device acceptance remains evidence-gated.
 
 ## Setup
 
