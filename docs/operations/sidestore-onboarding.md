@@ -37,7 +37,7 @@ The supported target is a minimum of one user action on SideStore's update actio
 
 ## Pairing recovery
 
-Use the current [official pairing-file guide](https://docs.sidestore.io/docs/advanced/pairing-file): connect the iPhone to the Windows computer, trust it, use iloader's `Delete Stored Pairing`, select the device and trust prompt again, open `Manage Pairing File`, and use `Place` for SideStore. If needed, restart the iPhone and computer and repeat the official procedure.
+Use the current [official pairing-file guide](https://docs.sidestore.io/docs/advanced/pairing-file) and the dedicated [pairing recovery runbook](pairing-recovery.md): connect the iPhone to the Windows computer, trust it, use iloader's `Delete Stored Pairing`, select the device and trust prompt again, open `Manage Pairing File`, and use `Place` for SideStore. If needed, restart the iPhone and computer and repeat the official procedure.
 
 Pairing files remain local evidence only. Never upload, commit, paste, or attach one to a GitHub issue, release, artifact, source, or chat. The official [common issues](https://docs.sidestore.io/docs/troubleshooting/common-issues) and [error codes](https://docs.sidestore.io/docs/troubleshooting/error-codes) pages are the escalation references.
 
