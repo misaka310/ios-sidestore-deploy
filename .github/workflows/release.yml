@@ -436,7 +436,7 @@ jobs:
           )
           if asset is None:
               raise SystemExit("Release IPA asset is missing")
-          download_url = asset["browserDownloadUrl"]
+          download_url = asset["url"]
           if not download_url.startswith("https://"):
               raise SystemExit("Release IPA URL must use HTTPS")
           metadata = {
