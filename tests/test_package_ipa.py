@@ -10,7 +10,7 @@ from scripts.validate_ipa import validate_ipa
 
 REPO_ROOT = Path(__file__).parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "package_ipa.sh"
-HAS_POSIX_ZIP_TOOLCHAIN = all(shutil.which(command) for command in ("bash", "zip"))
+HAS_POSIX_ZIP_TOOLCHAIN = all(shutil.which(command) for command in ("bash", "zip", "ditto"))
 
 
 def run_packager(app_path: Path, output_path: Path) -> subprocess.CompletedProcess[str]:

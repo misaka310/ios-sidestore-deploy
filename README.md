@@ -77,7 +77,7 @@ The Windows-to-device runbook is [SideStore onboarding and device evidence](docs
 
 For a downstream app, copy the reusable-workflow call pattern from the [sample repository](https://github.com/misaka310/ios-sidestore-sample) and set the app's project/workspace path, scheme, version, and build number. The caller repository must be public when it relies on the free standard GitHub-hosted macOS runner model. No Apple credentials or signing material are required for this build path.
 
-For local contract tests, use Python 3.11 or newer and install the test dependencies from the repository's normal Python environment. IPA packaging itself runs on macOS because it uses `ditto` and `zip`.
+For local contract tests, use Python 3.11 or newer and install the pinned test dependencies with `pip install -r requirements-dev.txt`. IPA packaging itself runs on macOS because it uses `ditto` and `zip`.
 
 ## Usage
 
@@ -85,7 +85,7 @@ On macOS, package an unsigned app bundle with `bash scripts/package_ipa.sh path/
 
 ## Verification
 
-Run the repository contract tests with `python -m pytest -q`. The authoritative hosted-run and physical-device evidence requirements are listed in `docs/verification-matrix.md` and `docs/acceptance-criteria.md`.
+Run the repository contract tests with `python -m pytest -q`. `.github/workflows/test.yml` runs the same suite automatically on every pull request and on pushes to `main`. The authoritative hosted-run and physical-device evidence requirements are listed in `docs/verification-matrix.md` and `docs/acceptance-criteria.md`.
 
 ## Requirements
 
